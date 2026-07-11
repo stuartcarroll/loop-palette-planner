@@ -111,6 +111,15 @@ code. The `stuc.dev` zone must live in the deploying Cloudflare account.
 
 ## Git workflow
 
-Static site, no CI. Commit generated files (`public/colors.js`, `public/icons/*`)
-alongside their sources so a plain `wrangler deploy` always works without a build.
+Commit generated files (`public/colors.js`, `public/icons/*`) alongside their
+sources so a plain `wrangler deploy` always works without a build.
 `node_modules/` and `.wrangler/` are gitignored.
+
+**CI/CD:** `.github/workflows/deploy.yml` runs `cloudflare/wrangler-action` on
+every push to `main` (and on manual dispatch), publishing `public/` to
+`colours.stuc.dev`. It needs two repo secrets — `CLOUDFLARE_API_TOKEN` (a token
+with *Edit Cloudflare Workers* permission on the account owning the `stuc.dev`
+zone) and `CLOUDFLARE_ACCOUNT_ID`. There is no build step in CI because the
+generated files are committed; if you change `data/loop_colors.xlsx` or an icon
+source, run `npm run build` locally and commit the regenerated output. There is
+still no test/lint CI.
