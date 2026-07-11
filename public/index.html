@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0c0c0c" />
+  <meta name="description" content="Plan graffiti mural colour palettes with the real Loop Colors 400ml spray range, then export a shareable can list." />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Loop Palette" />
+  <title>Loop Colors Palette Planner</title>
+
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" />
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+  <!-- Fonts: preload the two we paint onto the export canvas, then the stylesheet. -->
+  <link rel="preload" href="/fonts/permanent-marker-400.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/barlow-condensed-600.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/fonts/fonts.css" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="wall-noise" aria-hidden="true"></div>
+
+  <header class="app-header">
+    <div class="tape tape--title">
+      <h1 class="wordmark">Loop Palette</h1>
+    </div>
+    <p class="subtitle">Plan your cans. Export the list. Hit the wall.</p>
+  </header>
+
+  <main class="app-main">
+    <label class="field">
+      <span class="field__label">Mural title</span>
+      <input id="title-input" class="title-input" type="text" placeholder="Name…"
+             autocomplete="off" autocapitalize="words" spellcheck="false" maxlength="60" />
+    </label>
+
+    <section id="elements" class="elements" aria-label="Mural elements"></section>
+
+    <button id="add-element" class="btn btn--ghost" type="button">
+      <span class="btn__plus">+</span> Add element
+    </button>
+
+    <p class="credit">
+      216 Loop Colors 400ml cans · data from
+      <a href="https://github.com/stuartcarroll/SprayPaintSwatches" target="_blank" rel="noopener">SprayPaintSwatches</a>
+    </p>
+  </main>
+
+  <div class="export-bar">
+    <button id="export-btn" class="btn btn--export" type="button">Export</button>
+  </div>
+
+  <!-- Colour picker overlay -->
+  <div id="picker" class="picker" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="Choose a colour">
+    <div class="picker__bar">
+      <input id="picker-search" class="picker__search" type="search" inputmode="search"
+             placeholder="Search name or LP code…" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+      <button id="picker-close" class="picker__close" type="button" aria-label="Close">✕</button>
+    </div>
+    <div id="picker-grid" class="picker__grid" role="listbox"></div>
+    <p id="picker-empty" class="picker__empty" hidden>No cans match that.</p>
+  </div>
+
+  <!-- Export result overlay -->
+  <div id="export-view" class="export-view" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="Export preview">
+    <div class="export-view__bar">
+      <span class="export-view__hint" id="export-hint">Long-press the image to share or save</span>
+      <button id="export-close" class="picker__close" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="export-view__scroll">
+      <img id="export-img" class="export-view__img" alt="Palette export" />
+    </div>
+    <div class="export-view__actions">
+      <a id="export-download" class="btn btn--export" download="loop-palette.png">Download PNG</a>
+      <button id="export-share" class="btn btn--ghost" type="button" hidden>Share…</button>
+    </div>
+  </div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "loop-palette-planner",
+  "compatibility_date": "2026-07-11",
+  // Assets-only Worker (no `main`): serves the static site in ./public.
+  "assets": {
+    "directory": "./public"
+  },
+  // Attaches the custom domain + provisions DNS/cert on deploy. The stuc.dev
+  // zone must live in the deploying Cloudflare account.
+  "routes": [
+    { "pattern": "colours.stuc.dev", "custom_domain": true }
+  ]
+}
