@@ -1,0 +1,26 @@
+name: Deploy to Cloudflare
+
+# Publishes public/ to colours.stuc.dev on every push to main.
+# Generated files (public/colors.js, public/icons/*) are committed, so there is
+# no build step here — wrangler just uploads the static assets as-is.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
