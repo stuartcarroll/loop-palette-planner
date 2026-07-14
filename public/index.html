@@ -32,7 +32,11 @@
         <span class="brand__ring" aria-hidden="true"></span>
         <span class="brand__word">Palette</span>
       </div>
-      <button id="menu-btn" class="icon-btn" type="button" aria-label="Menu" aria-haspopup="true">⋯</button>
+      <div class="appbar__actions">
+        <button id="btn-new" class="bar-btn" type="button">New</button>
+        <button id="btn-save" class="bar-btn bar-btn--primary" type="button">Save</button>
+        <button id="btn-share" class="bar-btn" type="button">Share</button>
+      </div>
     </header>
 
     <div class="content" id="planner-content">
@@ -120,20 +124,6 @@
         <button id="copy-list" class="secondary-btn" type="button">Copy list</button>
         <button id="share-btn" class="secondary-btn" type="button">Share</button>
       </div>
-    </div>
-  </div>
-
-  <!-- ==================== MENU SHEET ==================== -->
-  <div id="menu" class="overlay" hidden aria-hidden="true">
-    <div class="backdrop" data-close-menu></div>
-    <div class="sheet sheet--menu" role="dialog" aria-modal="true" aria-label="Menu">
-      <div class="sheet__grip"><span></span></div>
-      <button class="menu-item" type="button" data-action="new">New piece</button>
-      <button class="menu-item" type="button" data-action="save">Save &amp; get link</button>
-      <button class="menu-item" type="button" data-action="share">Share read-only link</button>
-      <button class="menu-item" type="button" data-action="mypieces">My pieces</button>
-      <div id="mypieces-list" class="mypieces" hidden></div>
-      <button class="menu-item menu-item--muted" type="button" data-close-menu>Close</button>
     </div>
   </div>
 

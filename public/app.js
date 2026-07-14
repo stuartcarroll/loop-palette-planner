@@ -138,12 +138,6 @@ function renderPopulated(el) {
   const left = document.createElement('div');
   left.className = 'element__head-left';
   left.appendChild(roleInput(el, false));
-  if (el.colors.length > 1) {
-    const badge = document.createElement('span');
-    badge.className = 'fade-badge';
-    badge.textContent = 'Fade';
-    left.appendChild(badge);
-  }
   const cansN = elementCans(el);
   const cans = document.createElement('span');
   cans.className = 'element__cans';
@@ -337,22 +331,6 @@ function copyList() {
   });
 }
 
-async function shareFromExport() {
-  // native share of the text list (image share is on Download PNG)
-  const text = await buildShareText();
-  if (navigator.share) {
-    try { await navigator.share({ title: state.pieceName || 'Can list', text }); }
-    catch (e) { if (!(e && e.name === 'AbortError')) toast('Share cancelled'); }
-  } else { copyList(); }
-}
-async function buildShareText() {
-  const { VENDORS } = await import('/data/vendors.js');
-  const brand = (id) => (VENDORS.find((v) => v.id === id) || {}).brand || id;
-  let text = `${state.pieceName || 'Untitled piece'} — ${totalCans(state)} cans\n`;
-  for (const c of flatColours(state)) text += `${c.qty}× ${c.code} ${c.name} (${brand(c.vendor)}) — ${c.role}\n`;
-  return text.trim();
-}
-
 // ---------------------------------------------------------------- Turnstile
 let turnstileScript;
 function loadTurnstile() {
@@ -403,7 +381,8 @@ async function ensureSaved() {
 }
 
 async function doSave() {
-  closeMenu();
+  if (state.readOnly) return;
+  const btn = $('btn-save'); const label = btn.textContent; btn.disabled = true; btn.textContent = 'Saving…';
   try {
     const created = !state.editToken;
     await ensureSaved();
@@ -414,10 +393,14 @@ async function doSave() {
       url: `${location.origin}/?p=${state.editToken}`,
     });
   } catch (e) { toast(saveErr(e)); }
+  finally { btn.disabled = false; btn.textContent = label; }
 }
 
 async function doShare() {
-  closeMenu();
+  if (state.readOnly) { // already viewing a read-only link — just share/copy it
+    return shareUrl(location.href);
+  }
+  const btn = $('btn-share'); const label = btn.textContent; btn.disabled = true; btn.textContent = '…';
   try {
     await ensureSaved();
     showLinkModal({
@@ -426,6 +409,15 @@ async function doShare() {
       url: `${location.origin}/?s=${state.shareToken}`,
     });
   } catch (e) { toast(saveErr(e)); }
+  finally { btn.disabled = false; btn.textContent = label; }
+}
+
+async function shareUrl(url) {
+  if (navigator.share) {
+    try { await navigator.share({ title: state.pieceName || 'Palette', url }); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch { toast('Copy failed'); }
 }
 
 function saveErr(e) {
@@ -448,46 +440,8 @@ function showLinkModal({ title, sub, url }) {
 }
 function closeLinkModal() { $('link-modal').hidden = true; }
 
-// ---------------------------------------------------------------- menu
-function openMenu() { renderMyPieces(false); $('menu').hidden = false; $('menu').setAttribute('aria-hidden', 'false'); }
-function closeMenu() { $('menu').hidden = true; $('mypieces-list').hidden = true; }
-
-function renderMyPieces(show) {
-  const box = $('mypieces-list');
-  const pieces = listPieces();
-  box.innerHTML = '';
-  if (!pieces.length) {
-    const p = document.createElement('div');
-    p.className = 'mypiece__meta';
-    p.style.padding = '12px 4px';
-    p.textContent = 'No saved pieces on this device yet.';
-    box.appendChild(p);
-  } else {
-    for (const pc of pieces) {
-      const item = document.createElement('button');
-      item.className = 'mypiece';
-      item.type = 'button';
-      const meta = document.createElement('div');
-      const nm = document.createElement('div');
-      nm.className = 'mypiece__name';
-      nm.textContent = pc.name || 'Untitled piece';
-      const mt = document.createElement('div');
-      mt.className = 'mypiece__meta';
-      mt.textContent = `edited ${relativeTime(pc.updatedAt) || 'recently'}`;
-      meta.append(nm, mt);
-      const open = document.createElement('span');
-      open.className = 'mypiece__meta';
-      open.textContent = 'Open ›';
-      item.append(meta, open);
-      item.addEventListener('click', () => { location.href = `/?p=${pc.editToken}`; });
-      box.appendChild(item);
-    }
-  }
-  box.hidden = !show;
-}
-
+// ---------------------------------------------------------------- new piece
 function newPiece() {
-  closeMenu();
   clearDraft();
   replaceState(freshState());
   history.replaceState(null, '', '/');
@@ -553,20 +507,14 @@ function wireStaticControls() {
   $('export-back').addEventListener('click', hideExport);
   $('download-png').addEventListener('click', downloadPng);
   $('copy-list').addEventListener('click', copyList);
-  $('share-btn').addEventListener('click', shareFromExport);
+  $('share-btn').addEventListener('click', doShare); // export-screen Share → read-only link
 
-  $('menu-btn').addEventListener('click', openMenu);
-  document.querySelectorAll('[data-close-menu]').forEach((n) => n.addEventListener('click', closeMenu));
+  $('btn-new').addEventListener('click', newPiece);
+  $('btn-save').addEventListener('click', doSave);
+  $('btn-share').addEventListener('click', doShare);
   document.querySelectorAll('[data-close-linkmodal]').forEach((n) => n.addEventListener('click', closeLinkModal));
   $('link-copy').addEventListener('click', () => {
     navigator.clipboard.writeText($('link-input').value).then(() => toast('Link copied')).catch(() => toast('Copy failed'));
-  });
-  $('menu').addEventListener('click', (e) => {
-    const action = e.target.closest('[data-action]')?.dataset.action;
-    if (action === 'new') newPiece();
-    else if (action === 'save') doSave();
-    else if (action === 'share') doShare();
-    else if (action === 'mypieces') renderMyPieces(true);
   });
 }
 

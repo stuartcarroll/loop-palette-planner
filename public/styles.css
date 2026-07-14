@@ -98,6 +98,21 @@ input { font-family: inherit; }
 }
 .appbar--export .icon-btn { width: 36px; height: 36px; }
 
+.appbar__actions { display: flex; align-items: center; gap: 7px; }
+.bar-btn {
+  background: var(--raised); color: var(--ink);
+  border: none; border-radius: 10px;
+  font-family: var(--sans); font-weight: 600; font-size: 13px;
+  padding: 9px 12px; min-height: 38px; line-height: 1;
+}
+.bar-btn--primary { background: var(--primary); color: var(--primary-ink); font-family: var(--grotesk); font-weight: 700; }
+.bar-btn:active { opacity: 0.8; }
+@media (max-width: 340px) {
+  .brand__word { font-size: 16px; }
+  .bar-btn { padding: 9px 10px; font-size: 12px; }
+  .appbar { padding-left: calc(16px + var(--safe-left)); padding-right: calc(16px + var(--safe-right)); }
+}
+
 /* ---------- Title ---------- */
 .title-input {
   width: 100%;

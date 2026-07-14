@@ -12,6 +12,7 @@ export const DEFAULT_ELEMENTS = [
   { role: 'Outline', hint: 'Usually black or a dark tone' },
   { role: '3D', hint: 'Shadow / depth colour' },
   { role: 'Background', hint: 'Behind the piece' },
+  { role: 'Band', hint: 'Accent band or stripe' },
 ];
 
 export function freshState() {
