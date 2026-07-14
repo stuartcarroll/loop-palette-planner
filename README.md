@@ -15,9 +15,13 @@ can, then export a shareable palette image and shopping / can list.
   Montana BLACK (164), MTN 94 (169), MTN Hardcore (139), Molotow PREMIUM (163).
   Switch vendor with a tab; a piece (and even a single fade) can mix brands.
 - **Fades** — an element holds an *ordered list* of colours; more than one is a
-  fade, and every colour carries its own quantity.
-- **Colour picker** — search by name or code, filter/group by colour **family**
-  (derived at build time from HSL — the datasets have no family column).
+  fade, and every colour carries its own quantity. Add colours per element, adjust
+  quantities with steppers, and remove a colour inline (✕ on its row).
+- **Colour picker** — each swatch shows the paint **name + code**; search by name
+  or code, and filter/group by colour **family** (Yellow, Orange, Red, Pink,
+  Purple, Blue, Green, Brown, Metallic, Monochrome — derived at build time from
+  HSL, since the datasets have no family column). Blacks, whites and greys share a
+  single **Monochrome** group, sorted light→dark.
 - **Export** — a 1080px PNG can-list card (Web Share on mobile, download
   fallback), plus **Copy list** (plain-text, grouped by vendor).
 - **Save & Share, no accounts** — **Save** stores the piece server-side and

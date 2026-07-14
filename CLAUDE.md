@@ -33,7 +33,7 @@ public/                 # static site (served by the Worker's ASSETS binding)
 worker/index.js         # Cloudflare Worker: /api/* + scheduled() cron
 migrations/*.sql        # D1 schema
 scripts/
-  build-data.mjs        # xlsx -> public/data/*.js (families via HSL, validated)
+  build-data.mjs        # xlsx -> public/data/*.js (family via HSL; achromatic=Monochrome; validated)
   make-icons.mjs        # SVG -> public/icons/*.png
   serve.mjs             # static-only local server (prefer `wrangler dev`)
 data/*.xlsx             # source colour data (from stuartcarroll/SprayPaintSwatches)
@@ -57,7 +57,11 @@ non-zero on bad hex, dup code, or wrong vendor count).
 
 - **No runtime data fetch.** `public/data/<vendor>.js` are generated at build
   time and dynamically imported by the picker on demand. `vendors.js` is the
-  manifest (id, label, brand, count). Never fetch swatch data at runtime.
+  manifest (id, label, brand, count) + `FAMILY_ORDER`. Never fetch swatch data at
+  runtime. Each colour is `{code, name, hex, rgb, family}`; families come from
+  `FAMILY_ORDER` (achromatic cans bucket to a single `Monochrome`, which the
+  picker sorts light→dark). Picker swatches show the name + code; each colour row
+  in an element has an inline ✕ to remove it.
 - **State** (`store.js`): `{ id, editToken, shareToken, pieceName, elements, readOnly }`
   where `elements: [{ id, role, hint?, isDefault?, colors: [{vendor,code,name,hex,qty}] }]`.
   A colour's identity is `vendor + code`; an element with >1 colour is a fade.
