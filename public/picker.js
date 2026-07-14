@@ -23,6 +23,26 @@ const keyOf = (vendor, code) => `${vendor}:${code}`;
 
 export function isOpen() { return !overlay().hidden; }
 
+// iOS Safari shrinks the *visual* viewport for the on-screen keyboard but not
+// the *layout* viewport (and dvh doesn't react to the keyboard), so a
+// `position:fixed; inset:0` overlay stays full-height and the grid scrolls
+// behind the keyboard. Pin the overlay to the visual viewport instead so the
+// sheet always sits above the keyboard.
+function syncViewport() {
+  const vv = window.visualViewport;
+  const ov = overlay();
+  if (!vv || ov.hidden) return;
+  ov.style.height = `${vv.height}px`;
+  ov.style.top = `${vv.offsetTop}px`;
+  ov.style.bottom = 'auto';
+}
+function clearViewport() {
+  const ov = overlay();
+  ov.style.height = '';
+  ov.style.top = '';
+  ov.style.bottom = '';
+}
+
 export async function openPicker(options) {
   ctx = options;
   searchQuery = '';
@@ -39,6 +59,7 @@ export async function openPicker(options) {
   overlay().hidden = false;
   overlay().setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
+  syncViewport();
   await refreshGrid();
   if (!('ontouchstart' in window)) el('picker-search').focus();
 }
@@ -47,6 +68,7 @@ export function closePicker() {
   overlay().hidden = true;
   overlay().setAttribute('aria-hidden', 'true');
   document.body.style.overflow = '';
+  clearViewport();
   ctx = null;
 }
 
@@ -193,6 +215,11 @@ export function initPicker() {
     fn?.();
   });
   document.querySelectorAll('[data-close-picker]').forEach((n) => n.addEventListener('click', closePicker));
+  // Keep the sheet above the keyboard as the visual viewport changes.
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncViewport);
+    window.visualViewport.addEventListener('scroll', syncViewport);
+  }
   // Warm the default vendor so the first open is instant.
   loadVendor(activeVendor).catch(() => {});
 }
