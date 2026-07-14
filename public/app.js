@@ -41,6 +41,9 @@ function scheduleAutosave() {
 }
 
 function mutate(fn) { fn(); notify(); scheduleAutosave(); }
+// Text-field edits: update state + autosave WITHOUT re-rendering, so the input
+// keeps focus while typing (a full re-render would recreate the field).
+function edit(fn) { fn(); scheduleAutosave(); }
 
 // ---------------------------------------------------------------- planner render
 function updateSubline() {
@@ -76,7 +79,7 @@ function roleInput(el, big) {
   input.value = el.role || '';
   input.placeholder = el.isDefault ? el.role : 'Element name';
   input.setAttribute('aria-label', 'Element role');
-  input.addEventListener('input', () => mutate(() => { el.role = input.value; }));
+  input.addEventListener('input', () => edit(() => { el.role = input.value; }));
   input.addEventListener('click', (e) => e.stopPropagation());
   return input;
 }
@@ -497,7 +500,7 @@ async function boot() {
 }
 
 function wireStaticControls() {
-  $('title-input').addEventListener('input', (e) => mutate(() => { state.pieceName = e.target.value; }));
+  $('title-input').addEventListener('input', (e) => { edit(() => { state.pieceName = e.target.value; }); updateSubline(); });
   $('add-element').addEventListener('click', () => {
     mutate(() => state.elements.push({ id: newId(), role: '', colors: [] }));
     const last = $('elements').lastElementChild;
