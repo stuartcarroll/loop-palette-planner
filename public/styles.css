@@ -371,6 +371,11 @@ input { font-family: inherit; }
   background: var(--lime); color: var(--primary-ink); font-size: 11px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
 }
+/* Brief pulse when a can is tapped in multi-select, so the add registers
+   even though the sheet stays open. */
+.pick-tile.is-just-added .pick-tile__sw { animation: tile-pop 260ms ease; }
+@keyframes tile-pop { 0% { transform: scale(1); } 40% { transform: scale(0.93); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .pick-tile.is-just-added .pick-tile__sw { animation: none; } }
 .picker-empty { text-align: center; color: var(--muted); padding: 30px; }
 
 /* Menu / modal */

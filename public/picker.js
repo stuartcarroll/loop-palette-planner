@@ -13,10 +13,14 @@ async function loadVendor(id) {
   return mod.COLORS;
 }
 
-let ctx = null; // { onChoose, onRemove, canRemove, selectedKey }
+let ctx = null; // single: { onChoose, onRemove, canRemove, selectedKey, selectedVendor }
+                // multi:  { multi, onAdd, onRemoveLast } — picker stays open, tap toggles
 let activeVendor = VENDORS[0].id;
 let searchQuery = '';
 let activeFamily = 'All';
+// Keys (vendor:code) added during the current multi-select session, for tile
+// checkmarks + the Done count. Reset each time the picker opens.
+let sessionAdded = new Set();
 
 const codeKey = (code) => String(code).toLowerCase().replace(/[\s-]/g, '');
 const keyOf = (vendor, code) => `${vendor}:${code}`;
@@ -54,6 +58,9 @@ export async function openPicker(options) {
   el('picker-search').value = '';
   el('picker-context').textContent = options.context || 'Choose a colour';
   el('picker-remove-wrap').hidden = !options.canRemove;
+  sessionAdded = new Set();
+  el('picker-done-wrap').hidden = !options.multi;
+  updateDoneLabel();
 
   renderTabs();
   overlay().hidden = false;
@@ -135,6 +142,29 @@ function filterColours(colors) {
   });
 }
 
+// Toggle a tile's selected state + checkmark in place (no grid re-render, so
+// the scroll position is preserved while multi-selecting).
+function setTileSelected(b, on) {
+  b.classList.toggle('is-selected', on);
+  const sw = b.querySelector('.pick-tile__sw');
+  let chk = sw.querySelector('.swatch__check');
+  if (on && !chk) {
+    chk = document.createElement('span');
+    chk.className = 'swatch__check';
+    chk.textContent = '✓';
+    sw.appendChild(chk);
+    b.classList.remove('is-just-added'); void b.offsetWidth; // restart the flash
+    b.classList.add('is-just-added');
+  } else if (!on && chk) {
+    chk.remove();
+  }
+}
+
+function updateDoneLabel() {
+  const n = sessionAdded.size;
+  el('picker-done').textContent = n ? `Done · ${n} added` : 'Done';
+}
+
 function renderGrid(colors) {
   const grid = el('picker-grid');
   const list = filterColours(colors);
@@ -163,7 +193,8 @@ function renderGrid(colors) {
     const g = document.createElement('div');
     g.className = 'picker-group__grid';
     for (const c of group) {
-      const selected = ctx?.selectedKey === keyOf(activeVendor, c.code);
+      const key = keyOf(activeVendor, c.code);
+      const selected = ctx?.selectedKey === key || sessionAdded.has(key);
       const b = document.createElement('button');
       b.className = 'pick-tile' + (selected ? ' is-selected' : '');
       b.type = 'button';
@@ -173,12 +204,6 @@ function renderGrid(colors) {
       const sw = document.createElement('span');
       sw.className = 'pick-tile__sw';
       sw.style.background = c.hex;
-      if (selected) {
-        const chk = document.createElement('span');
-        chk.className = 'swatch__check';
-        chk.textContent = '✓';
-        sw.appendChild(chk);
-      }
       const name = document.createElement('span');
       name.className = 'pick-tile__name';
       name.textContent = c.name;
@@ -187,11 +212,21 @@ function renderGrid(colors) {
       code.textContent = c.code;
 
       b.append(sw, name, code);
+      if (selected) setTileSelected(b, true);
       b.addEventListener('click', () => {
         const chosen = { vendor: activeVendor, code: c.code, name: c.name, hex: c.hex };
-        const fn = ctx?.onChoose;
-        closePicker();
-        fn?.(chosen);
+        if (ctx?.multi) {
+          // Stay open: tap adds the can (live), tap again undoes it.
+          const on = !sessionAdded.has(key);
+          if (on) { sessionAdded.add(key); ctx.onAdd?.(chosen); }
+          else { sessionAdded.delete(key); ctx.onRemoveLast?.(key); }
+          setTileSelected(b, on);
+          updateDoneLabel();
+        } else {
+          const fn = ctx?.onChoose;
+          closePicker();
+          fn?.(chosen);
+        }
       });
       g.appendChild(b);
     }
@@ -209,6 +244,7 @@ export function initPicker() {
     const colors = await loadVendor(activeVendor);
     renderGrid(colors);
   });
+  el('picker-done').addEventListener('click', closePicker);
   el('picker-remove').addEventListener('click', () => {
     const fn = ctx?.onRemove;
     closePicker();
