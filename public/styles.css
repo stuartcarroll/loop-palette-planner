@@ -217,6 +217,13 @@ input { font-family: inherit; }
 .stepper__btn--plus { color: var(--lime); }
 .stepper__val { min-width: 18px; text-align: center; font-family: var(--mono); font-weight: 700; font-size: 14px; color: var(--ink); }
 
+.colorrow__remove {
+  width: 30px; height: 34px; flex-shrink: 0;
+  border: none; background: transparent; color: var(--faint);
+  font-size: 13px; border-radius: 8px;
+}
+.colorrow__remove:active { color: #e46a6a; background: rgba(228,106,106,0.14); }
+
 .add-colour {
   margin-top: 11px; display: flex; align-items: center; gap: 8px;
   color: var(--faint-2); font-family: var(--sans); font-size: 13px; font-weight: 500;
@@ -335,14 +342,27 @@ input { font-family: inherit; }
 .picker-grid { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px 22px calc(16px + var(--safe-bottom)); }
 .picker-group { margin-bottom: 18px; }
 .picker-group__head { font-family: var(--mono); font-size: 11px; color: var(--faint-2); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 9px; }
-.picker-group__grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 9px; }
-.swatch {
-  aspect-ratio: 1; border-radius: 12px;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.13);
-  position: relative; border: none; padding: 0;
+.picker-group__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 12px 10px; }
+.pick-tile {
+  display: flex; flex-direction: column; align-items: stretch;
+  background: none; border: none; padding: 0; text-align: left; min-width: 0;
 }
-.swatch.is-selected::after {
+.pick-tile__sw {
+  height: 58px; border-radius: 12px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.13);
+  position: relative;
+}
+.pick-tile.is-selected .pick-tile__sw::after {
   content: ""; position: absolute; inset: -3px; border-radius: 14px; border: 2.5px solid var(--lime);
+}
+.pick-tile__name {
+  font-family: var(--sans); font-weight: 600; font-size: 12px; color: var(--ink);
+  margin-top: 6px; line-height: 1.15;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pick-tile__code {
+  font-family: var(--mono); font-size: 10px; color: var(--faint-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .swatch__check {
   position: absolute; top: 4px; right: 4px; width: 16px; height: 16px; border-radius: 50%;

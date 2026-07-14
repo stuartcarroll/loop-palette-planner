@@ -2,8 +2,8 @@
 
 A mobile-first web app for planning graffiti / mural colour palettes using real
 manufacturer spray ranges. Name a piece, assign one or more cans to each
-**element** (Fill, Outline, 3D, Background, + custom), set a quantity per can,
-then export a shareable palette image and shopping / can list.
+**element** (Fill, Outline, 3D, Background, Band, + custom), set a quantity per
+can, then export a shareable palette image and shopping / can list.
 
 **Live:** https://colours.stuc.dev
 
@@ -14,15 +14,17 @@ then export a shareable palette image and shopping / can list.
 - **1044 real cans across 6 ranges** — Loop Colors (216), Montana GOLD (193),
   Montana BLACK (164), MTN 94 (169), MTN Hardcore (139), Molotow PREMIUM (163).
   Switch vendor with a tab; a piece (and even a single fade) can mix brands.
-- **Fades** — an element holds an *ordered list* of colours; more than one makes
-  a fade, and every colour carries its own quantity.
+- **Fades** — an element holds an *ordered list* of colours; more than one is a
+  fade, and every colour carries its own quantity.
 - **Colour picker** — search by name or code, filter/group by colour **family**
   (derived at build time from HSL — the datasets have no family column).
 - **Export** — a 1080px PNG can-list card (Web Share on mobile, download
   fallback), plus **Copy list** (plain-text, grouped by vendor).
-- **Save & Share, no accounts** — Save stores the piece server-side and returns
-  an unguessable **edit link** + QR (a capability URL). Share returns a separate
-  read-only link + QR. "My pieces" remembers saves on the device.
+- **Save & Share, no accounts** — **Save** stores the piece server-side and
+  returns an unguessable **edit link** + QR (a capability URL — the link *is* the
+  credential, so it's the way back into a piece). **Share** returns a separate
+  read-only link + QR. `New` / `Save` / `Share` sit in the top bar; the export
+  screen's Share also yields the read-only link.
 - Installable **PWA**; self-hosted fonts (Space Grotesk / Instrument Sans /
   Space Mono); safe-area insets; 44px touch targets. No framework.
 

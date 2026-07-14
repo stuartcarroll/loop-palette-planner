@@ -216,7 +216,14 @@ function renderColorRow(el, c, idx) {
   plus.addEventListener('click', () => mutate(() => { c.qty = Math.min(99, c.qty + 1); }));
   stepper.append(minus, val, plus);
 
-  row.append(sw, meta, stepper);
+  const rm = document.createElement('button');
+  rm.className = 'colorrow__remove';
+  rm.type = 'button';
+  rm.textContent = '✕';
+  rm.setAttribute('aria-label', `Remove ${c.name}`);
+  rm.addEventListener('click', () => mutate(() => { el.colors.splice(idx, 1); }));
+
+  row.append(sw, meta, stepper, rm);
   return row;
 }
 

@@ -7,9 +7,9 @@ Guidance for AI assistants working in this repository.
 **Palette** — a mobile-first, framework-free web app for planning spray-paint
 mural palettes across six real manufacturer ranges (Loop, Montana GOLD/BLACK,
 MTN 94/Hardcore, Molotow). Users assign one or more cans to each **element**
-(Fill, Outline, 3D, Background, + custom), set per-can quantities, and export a
-shareable can list. Pieces can be saved (edit link) and shared (read-only link)
-with no accounts.
+(Fill, Outline, 3D, Background, Band, + custom), set per-can quantities, and
+export a shareable can list. Pieces can be saved (edit link) and shared
+(read-only link) with no accounts.
 
 - **Live:** https://colours.stuc.dev
 - **Stack:** plain static HTML/CSS/ES-modules + a single Cloudflare Worker
@@ -19,7 +19,7 @@ with no accounts.
 
 ```
 public/                 # static site (served by the Worker's ASSETS binding)
-  index.html            # shell: planner, picker sheet, export view, menu, modal
+  index.html            # shell: planner, picker sheet, export view, link/QR modal
   styles.css            # all styling (dark near-mono theme, lime accent)
   app.js                # entry: routing, planner render, save/share, Turnstile
   store.js              # state, derived totals, localStorage, API client
@@ -61,10 +61,15 @@ non-zero on bad hex, dup code, or wrong vendor count).
 - **State** (`store.js`): `{ id, editToken, shareToken, pieceName, elements, readOnly }`
   where `elements: [{ id, role, hint?, isDefault?, colors: [{vendor,code,name,hex,qty}] }]`.
   A colour's identity is `vendor + code`; an element with >1 colour is a fade.
-  Mutations go through `mutate()` in app.js → `notify()` re-renders + `scheduleAutosave()`.
-- **Persistence:** unsaved work is a localStorage draft. Save → `POST /api/pieces`
-  (Turnstile token + rate-limited) returns edit + share tokens; thereafter edits
-  autosave via debounced `PUT`. "My pieces" is a localStorage registry of tokens.
+- **Two mutation paths in app.js:** `mutate(fn)` = `fn()` + `notify()` (full
+  re-render) + autosave — for structural changes (add/remove colour or element,
+  quantity steppers). `edit(fn)` = `fn()` + autosave WITHOUT re-render — for the
+  role/title text inputs, so the focused field isn't destroyed mid-typing.
+- **Persistence:** unsaved work is a localStorage draft. **Save** →
+  `POST /api/pieces` (Turnstile token + rate-limited) returns edit + share tokens;
+  thereafter edits autosave via debounced `PUT`. There is no "My pieces" list —
+  no login, so the edit link/QR is the only way back into a saved piece. Top-bar
+  `New` / `Save` / `Share` buttons drive these (no overflow menu).
 - **Routing** is query-param based on `/`: `?p=<editToken>` opens the editor,
   `?s=<shareToken>` opens the read-only can list. Keeps all navigation on `/`
   (a static asset) so the Worker only handles `/api/*`.

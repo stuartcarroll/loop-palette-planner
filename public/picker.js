@@ -137,18 +137,30 @@ function renderGrid(colors) {
     const g = document.createElement('div');
     g.className = 'picker-group__grid';
     for (const c of group) {
+      const selected = ctx?.selectedKey === keyOf(activeVendor, c.code);
       const b = document.createElement('button');
-      b.className = 'swatch' + (ctx?.selectedKey === keyOf(activeVendor, c.code) ? ' is-selected' : '');
+      b.className = 'pick-tile' + (selected ? ' is-selected' : '');
       b.type = 'button';
-      b.style.background = c.hex;
       b.setAttribute('aria-label', `${c.code} ${c.name}`);
       b.title = `${c.code} · ${c.name}`;
-      if (ctx?.selectedKey === keyOf(activeVendor, c.code)) {
+
+      const sw = document.createElement('span');
+      sw.className = 'pick-tile__sw';
+      sw.style.background = c.hex;
+      if (selected) {
         const chk = document.createElement('span');
         chk.className = 'swatch__check';
         chk.textContent = '✓';
-        b.appendChild(chk);
+        sw.appendChild(chk);
       }
+      const name = document.createElement('span');
+      name.className = 'pick-tile__name';
+      name.textContent = c.name;
+      const code = document.createElement('span');
+      code.className = 'pick-tile__code';
+      code.textContent = c.code;
+
+      b.append(sw, name, code);
       b.addEventListener('click', () => {
         const chosen = { vendor: activeVendor, code: c.code, name: c.name, hex: c.hex };
         const fn = ctx?.onChoose;
