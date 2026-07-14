@@ -24,3 +24,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Pin wrangler v4 — assets-only Workers (no `main`) need v4; the
+          # action otherwise falls back to wrangler 3.x and fails with
+          # "Missing entry-point".
+          wranglerVersion: "4.54.0"
