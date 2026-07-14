@@ -17,14 +17,13 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
+      # Run wrangler directly (pinned) rather than via wrangler-action: keeps us
+      # on wrangler v4 (assets-only Workers need it) and avoids node20-based
+      # actions, so there are no runner deprecation warnings.
       - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Pin wrangler v4 — assets-only Workers (no `main`) need v4; the
-          # action otherwise falls back to wrangler 3.x and fails with
-          # "Missing entry-point".
-          wranglerVersion: "4.54.0"
+        run: npx -y wrangler@4.54.0 deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
