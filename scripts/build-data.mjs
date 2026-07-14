@@ -37,7 +37,7 @@ const VENDORS = [
 // Ordered so the picker's family headers and chips read naturally.
 export const FAMILY_ORDER = [
   'Yellow', 'Orange', 'Red', 'Pink', 'Purple', 'Blue', 'Green',
-  'Brown', 'Metallic', 'White', 'Grey', 'Black',
+  'Brown', 'Metallic', 'Monochrome',
 ];
 
 const normHex = (h) => {
@@ -83,13 +83,9 @@ function familyOf(name, hex) {
   const chroma = (max - min) / 255;   // 0..1
   const l = (max + min) / 2 / 255;
 
-  // Near-neutral: decide purely by lightness.
-  if (chroma < 0.10) {
-    if (l >= 0.82) return 'White';
-    if (l <= 0.16) return 'Black';
-    return 'Grey';
-  }
-  if (l <= 0.09) return 'Black';
+  // Near-neutral (black / white / grey) all group under Monochrome.
+  if (chroma < 0.10) return 'Monochrome';
+  if (l <= 0.09) return 'Monochrome';
 
   const [h] = rgbToHsl(r, g, b);
 

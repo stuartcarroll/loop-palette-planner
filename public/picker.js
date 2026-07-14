@@ -129,6 +129,10 @@ function renderGrid(colors) {
   for (const fam of FAMILY_ORDER) {
     const group = byFam.get(fam);
     if (!group) continue;
+    // Monochrome mixes whites/greys/blacks — order light → dark so it reads cleanly.
+    if (fam === 'Monochrome') {
+      group.sort((a, b) => (b.rgb[0] + b.rgb[1] + b.rgb[2]) - (a.rgb[0] + a.rgb[1] + a.rgb[2]));
+    }
     const wrap = document.createElement('div');
     wrap.className = 'picker-group';
     const head = document.createElement('div');
