@@ -285,7 +285,9 @@ input { font-family: inherit; }
   box-shadow: 0 -30px 60px -20px rgba(0,0,0,0.6);
   display: flex; flex-direction: column;
   max-width: var(--maxw); margin: 0 auto; width: 100%;
-  max-height: 92dvh;
+  /* 100% keeps the sheet inside the overlay, which app JS shrinks to the
+     visual viewport when the on-screen keyboard is open (see picker.js). */
+  max-height: min(92dvh, 100%);
   animation: sheet-up 240ms cubic-bezier(0.22,0.61,0.36,1);
 }
 @keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
@@ -339,7 +341,7 @@ input { font-family: inherit; }
 }
 .chip.is-active { background: var(--ink); color: var(--primary-ink); border-color: var(--ink); }
 
-.picker-grid { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px 22px calc(16px + var(--safe-bottom)); }
+.picker-grid { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px 22px calc(16px + var(--safe-bottom)); }
 .picker-group { margin-bottom: 18px; }
 .picker-group__head { font-family: var(--mono); font-size: 11px; color: var(--faint-2); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 9px; }
 .picker-group__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 12px 10px; }
@@ -369,6 +371,11 @@ input { font-family: inherit; }
   background: var(--lime); color: var(--primary-ink); font-size: 11px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
 }
+/* Brief pulse when a can is tapped in multi-select, so the add registers
+   even though the sheet stays open. */
+.pick-tile.is-just-added .pick-tile__sw { animation: tile-pop 260ms ease; }
+@keyframes tile-pop { 0% { transform: scale(1); } 40% { transform: scale(0.93); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .pick-tile.is-just-added .pick-tile__sw { animation: none; } }
 .picker-empty { text-align: center; color: var(--muted); padding: 30px; }
 
 /* Menu / modal */

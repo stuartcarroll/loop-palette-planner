@@ -45,6 +45,15 @@ function mutate(fn) { fn(); notify(); scheduleAutosave(); }
 // keeps focus while typing (a full re-render would recreate the field).
 function edit(fn) { fn(); scheduleAutosave(); }
 
+// Undo the most recent add of a given vendor:code (used by the picker's
+// multi-select "tap again to remove"). Removes the last matching colour so a
+// pre-existing duplicate is left untouched.
+function removeLastColour(el, key) {
+  for (let i = el.colors.length - 1; i >= 0; i--) {
+    if (`${el.colors[i].vendor}:${el.colors[i].code}` === key) { el.colors.splice(i, 1); return; }
+  }
+}
+
 // ---------------------------------------------------------------- planner render
 function updateSubline() {
   const sub = $('title-sub');
@@ -122,7 +131,9 @@ function renderEmpty(el) {
 
   const openAdd = () => openPicker({
     context: `Choose for · ${el.role || 'Element'}`,
-    onChoose: (c) => mutate(() => el.colors.push({ ...c, qty: 1 })),
+    multi: true,
+    onAdd: (c) => mutate(() => el.colors.push({ ...c, qty: 1 })),
+    onRemoveLast: (key) => mutate(() => removeLastColour(el, key)),
   });
   add.addEventListener('click', (e) => { e.stopPropagation(); openAdd(); });
   ph.addEventListener('click', openAdd);
@@ -162,7 +173,9 @@ function renderPopulated(el) {
   addC.innerHTML = '<span class="add-colour__plus">+</span> Add colour';
   addC.addEventListener('click', () => openPicker({
     context: `Choose for · ${el.role || 'Element'}`,
-    onChoose: (c) => mutate(() => el.colors.push({ ...c, qty: 1 })),
+    multi: true,
+    onAdd: (c) => mutate(() => el.colors.push({ ...c, qty: 1 })),
+    onRemoveLast: (key) => mutate(() => removeLastColour(el, key)),
   }));
 
   card.append(head, colors, addC);
