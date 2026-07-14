@@ -3,77 +3,158 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0c0c0c" />
-  <meta name="description" content="Plan graffiti mural colour palettes with the real Loop Colors 400ml spray range, then export a shareable can list." />
+  <meta name="theme-color" content="#0E0F10" />
+  <meta name="description" content="Plan spray-paint mural palettes with real Loop Colors, Montana, MTN and Molotow ranges. Assign cans to elements, set quantities, export a shareable can list." />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Loop Palette" />
-  <title>Loop Colors Palette Planner</title>
+  <meta name="apple-mobile-web-app-title" content="Palette" />
+
+  <title>Palette — spray-paint planner</title>
 
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" />
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
-  <!-- Fonts: preload the two we paint onto the export canvas, then the stylesheet. -->
-  <link rel="preload" href="/fonts/permanent-marker-400.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="preload" href="/fonts/barlow-condensed-600.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/space-grotesk-var.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/instrument-sans-var.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/space-mono-400.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="/fonts/fonts.css" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="wall-noise" aria-hidden="true"></div>
 
-  <header class="app-header">
-    <div class="tape tape--title">
-      <h1 class="wordmark">Loop Palette</h1>
+  <!-- ==================== PLANNER (screens 1 & 2) ==================== -->
+  <div id="planner" class="screen">
+    <header class="appbar">
+      <div class="brand">
+        <span class="brand__ring" aria-hidden="true"></span>
+        <span class="brand__word">Palette</span>
+      </div>
+      <button id="menu-btn" class="icon-btn" type="button" aria-label="Menu" aria-haspopup="true">⋯</button>
+    </header>
+
+    <div class="content" id="planner-content">
+      <input id="title-input" class="title-input" type="text" placeholder="Untitled piece"
+             autocomplete="off" autocapitalize="words" spellcheck="false" maxlength="80" aria-label="Piece name" />
+      <div id="title-sub" class="title-sub">Name your piece to begin</div>
+
+      <div class="elements-head">
+        <span class="label">Elements</span>
+        <span id="elements-hint" class="label label--hint" hidden>Tap swatch to change</span>
+      </div>
+
+      <div id="elements" class="elements"></div>
+
+      <button id="add-element" class="ghost-btn" type="button">+ Add custom element</button>
     </div>
-  </header>
 
-  <main class="app-main">
-    <label class="field">
-      <span class="field__label">Plan</span>
-      <input id="title-input" class="title-input" type="text" placeholder="Name…"
-             autocomplete="off" autocapitalize="words" spellcheck="false" maxlength="60" />
-    </label>
-
-    <section id="elements" class="elements" aria-label="Mural elements"></section>
-
-    <button id="add-element" class="btn btn--ghost" type="button">
-      <span class="btn__plus">+</span> Add element
-    </button>
-  </main>
-
-  <div class="export-bar">
-    <button id="export-btn" class="btn btn--export" type="button">Export</button>
-  </div>
-
-  <!-- Colour picker overlay -->
-  <div id="picker" class="picker" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="Choose a colour">
-    <div class="picker__bar">
-      <input id="picker-search" class="picker__search" type="search" inputmode="search"
-             placeholder="Search name or LP code…" autocomplete="off" autocapitalize="characters" spellcheck="false" />
-      <button id="picker-close" class="picker__close" type="button" aria-label="Close">✕</button>
-    </div>
-    <div id="picker-grid" class="picker__grid" role="listbox"></div>
-    <p id="picker-empty" class="picker__empty" hidden>No cans match that.</p>
-  </div>
-
-  <!-- Export result overlay -->
-  <div id="export-view" class="export-view" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="Export preview">
-    <div class="export-view__bar">
-      <span class="export-view__hint" id="export-hint">Long-press the image to share or save</span>
-      <button id="export-close" class="picker__close" type="button" aria-label="Close">✕</button>
-    </div>
-    <div class="export-view__scroll">
-      <img id="export-img" class="export-view__img" alt="Palette export" />
-    </div>
-    <div class="export-view__actions">
-      <a id="export-download" class="btn btn--export" download="loop-palette.png">Download PNG</a>
-      <button id="export-share" class="btn btn--ghost" type="button" hidden>Share…</button>
+    <div class="bottombar">
+      <div class="totals">
+        <div id="total-cans" class="totals__cans">0 cans</div>
+        <div id="total-colours" class="totals__colours">0 colours</div>
+      </div>
+      <button id="export-btn" class="primary-btn" type="button" disabled>Export</button>
     </div>
   </div>
+
+  <!-- ==================== COLOUR PICKER SHEET (screen 3) ==================== -->
+  <div id="picker" class="overlay" hidden aria-hidden="true">
+    <div class="backdrop" data-close-picker></div>
+    <div class="sheet" role="dialog" aria-modal="true" aria-label="Choose a colour">
+      <div class="sheet__grip"><span></span></div>
+      <div class="sheet__head">
+        <div class="sheet__titles">
+          <div id="picker-context" class="label">Choose a colour</div>
+          <div class="sheet__title">Choose a colour</div>
+        </div>
+        <button id="picker-close" class="round-btn" type="button" aria-label="Close" data-close-picker>✕</button>
+      </div>
+      <div id="vendor-tabs" class="vendor-tabs" role="tablist"></div>
+      <label class="search">
+        <span class="search__icon" aria-hidden="true">⌕</span>
+        <input id="picker-search" class="search__input" type="search" inputmode="search"
+               placeholder="Search name or code…" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+      </label>
+      <div id="family-chips" class="chips"></div>
+      <div id="picker-grid" class="picker-grid" role="listbox" aria-label="Colours"></div>
+      <p id="picker-empty" class="picker-empty" hidden>No cans match that.</p>
+      <div id="picker-remove-wrap" class="sheet__foot" hidden>
+        <button id="picker-remove" class="danger-btn" type="button">Remove this colour</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== EXPORT / CAN LIST (screen 4) ==================== -->
+  <div id="export-view" class="screen" hidden>
+    <header class="appbar appbar--export">
+      <button id="export-back" class="icon-btn" type="button" aria-label="Back">‹</button>
+      <span class="appbar__title" id="export-title">Your can list</span>
+    </header>
+
+    <div class="content" id="export-content">
+      <div class="preview-card">
+        <div id="preview-bars" class="preview-bars"></div>
+        <div class="preview-foot">
+          <div>
+            <div id="preview-name" class="preview-name">Untitled piece</div>
+            <div id="preview-meta" class="preview-meta">0 colours · 0 cans</div>
+          </div>
+          <div id="preview-brand" class="preview-brand">Loop</div>
+        </div>
+      </div>
+
+      <div class="label" style="margin-bottom:10px;">Shopping list</div>
+      <div id="shopping-list" class="shopping-list"></div>
+
+      <div class="total-row">
+        <span class="total-row__label">Total</span>
+        <span id="total-row-value" class="total-row__value">0 cans</span>
+      </div>
+    </div>
+
+    <div class="export-actions">
+      <button id="download-png" class="primary-btn primary-btn--block" type="button">Download PNG</button>
+      <div class="export-actions__row">
+        <button id="copy-list" class="secondary-btn" type="button">Copy list</button>
+        <button id="share-btn" class="secondary-btn" type="button">Share</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MENU SHEET ==================== -->
+  <div id="menu" class="overlay" hidden aria-hidden="true">
+    <div class="backdrop" data-close-menu></div>
+    <div class="sheet sheet--menu" role="dialog" aria-modal="true" aria-label="Menu">
+      <div class="sheet__grip"><span></span></div>
+      <button class="menu-item" type="button" data-action="new">New piece</button>
+      <button class="menu-item" type="button" data-action="save">Save &amp; get link</button>
+      <button class="menu-item" type="button" data-action="share">Share read-only link</button>
+      <button class="menu-item" type="button" data-action="mypieces">My pieces</button>
+      <div id="mypieces-list" class="mypieces" hidden></div>
+      <button class="menu-item menu-item--muted" type="button" data-close-menu>Close</button>
+    </div>
+  </div>
+
+  <!-- ==================== LINK / QR MODAL ==================== -->
+  <div id="link-modal" class="overlay" hidden aria-hidden="true">
+    <div class="backdrop" data-close-linkmodal></div>
+    <div class="sheet sheet--modal" role="dialog" aria-modal="true" aria-label="Your link">
+      <div class="sheet__grip"><span></span></div>
+      <div id="link-modal-title" class="sheet__title" style="text-align:center;margin-bottom:4px;">Your link</div>
+      <div id="link-modal-sub" class="label" style="text-align:center;margin-bottom:16px;">Keep this to get back in</div>
+      <div id="qr-holder" class="qr-holder"></div>
+      <div class="link-row">
+        <input id="link-input" class="link-input" type="text" readonly />
+        <button id="link-copy" class="secondary-btn" type="button">Copy</button>
+      </div>
+      <button class="primary-btn primary-btn--block" type="button" data-close-linkmodal style="margin-top:14px;">Done</button>
+    </div>
+  </div>
+
+  <!-- ==================== TOAST ==================== -->
+  <div id="toast" class="toast" hidden></div>
 
   <script type="module" src="/app.js"></script>
 </body>

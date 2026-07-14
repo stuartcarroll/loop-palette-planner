@@ -1,4 +1,9 @@
 node_modules/
 .wrangler/
+.dev.vars
 .DS_Store
 *.log
+
+# local design bundle / unused assets
+Improving color app design.zip
+loopcolors_logo_h_dark.png

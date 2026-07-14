@@ -1,416 +1,573 @@
-import { COLORS } from './colors.js';
+// Main app: routing, planner rendering, picker wiring, export view, save/share,
+// autosave, Turnstile. Plain ES modules, no framework.
+import {
+  state, subscribe, notify, replaceState, freshState, hydrate, newId,
+  elementCans, totalCans, colourCount, hasAnyColour, flatColours,
+  saveDraft, loadDraft, clearDraft, listPieces, rememberPiece, forgetPiece,
+  relativeTime, api,
+} from '/store.js';
+import { initPicker, openPicker } from '/picker.js';
+import { renderExportCanvas } from '/canvas.js';
+import { TURNSTILE_SITEKEY } from '/config.js';
+import qrcode from '/vendor/qrcode.mjs';
 
-// ---------- Data ----------
-const BY_CODE = new Map(COLORS.map((c) => [c.code, c]));
-// normalized key for fast code search: "LP-413" -> "lp413"
-const codeKey = (code) => code.toLowerCase().replace(/[\s-]/g, '');
+const $ = (id) => document.getElementById(id);
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const DEFAULT_ELEMENTS = [
-  { name: 'Fill', cans: ['LP-413', 'LP-411'] },
-  { name: 'Outline', cans: ['LP-104'] },
-  { name: '3D / Block', cans: ['LP-184'] },
-  { name: 'Background', cans: ['LP-251'] },
-  { name: 'Highlights', cans: ['LP-100'] },
-  { name: 'Character', cans: ['LP-108', 'LP-266'] },
-];
-
-const STORAGE_KEY = 'loop-palette-v1';
-let uid = 0;
-const nextId = () => `el-${++uid}`;
-
-// ---------- State ----------
-let state = load() || {
-  title: '',
-  elements: DEFAULT_ELEMENTS.map((e) => ({ id: nextId(), name: e.name, cans: [...e.cans] })),
-};
-
-function load() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (!data || !Array.isArray(data.elements)) return null;
-    // re-key ids and drop unknown codes
-    data.elements = data.elements.map((e) => ({
-      id: nextId(),
-      name: String(e.name || ''),
-      cans: (Array.isArray(e.cans) ? e.cans : []).filter((c) => BY_CODE.has(c)),
-    }));
-    data.title = String(data.title || '');
-    return data;
-  } catch {
-    return null;
-  }
+// ---------------------------------------------------------------- toast
+let toastTimer;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
 }
 
-function save() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    /* private mode / quota — non-fatal */
-  }
+// ---------------------------------------------------------------- autosave
+let saveTimer;
+function scheduleAutosave() {
+  saveDraft();
+  if (!state.editToken || state.readOnly) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      const r = await api.update(state.editToken);
+      state.updatedAt = r.updatedAt || Date.now();
+      rememberPiece({ editToken: state.editToken, shareToken: state.shareToken, name: state.pieceName, updatedAt: state.updatedAt });
+      updateSubline();
+    } catch (e) { /* last-write-wins; surface only hard errors */ console.warn('[autosave]', e.message); }
+  }, 800);
 }
 
-// ---------- Elements ----------
-const $ = (sel, root = document) => root.querySelector(sel);
-const elementsEl = $('#elements');
-const titleInput = $('#title-input');
+function mutate(fn) { fn(); notify(); scheduleAutosave(); }
 
-titleInput.value = state.title;
-titleInput.addEventListener('input', () => {
-  state.title = titleInput.value;
-  save();
-});
+// ---------------------------------------------------------------- planner render
+function updateSubline() {
+  const sub = $('title-sub');
+  if (state.editToken) sub.textContent = `Saved · edited ${relativeTime(state.updatedAt) || 'just now'}`;
+  else if (state.pieceName || hasAnyColour()) sub.textContent = 'Draft on this device';
+  else sub.textContent = 'Name your piece to begin';
+}
 
-function renderElements() {
-  elementsEl.innerHTML = '';
+function renderPlanner() {
+  $('title-input').value = state.pieceName;
+  updateSubline();
+  $('elements-hint').hidden = !hasAnyColour();
+
+  const wrap = $('elements');
+  wrap.innerHTML = '';
   for (const el of state.elements) {
-    elementsEl.appendChild(renderElement(el));
+    wrap.appendChild(el.colors.length ? renderPopulated(el) : renderEmpty(el));
   }
+
+  const cans = totalCans();
+  $('total-cans').textContent = `${cans} ${cans === 1 ? 'can' : 'cans'}`;
+  const cols = colourCount();
+  $('total-colours').textContent = `${cols} ${cols === 1 ? 'colour' : 'colours'}`;
+  $('export-btn').disabled = !hasAnyColour();
 }
 
-function renderElement(el) {
-  const wrap = document.createElement('div');
-  wrap.className = 'element';
-  wrap.dataset.id = el.id;
-
-  const head = document.createElement('div');
-  head.className = 'element__head';
-
-  const nameInput = document.createElement('input');
-  nameInput.className = 'element__name';
-  nameInput.type = 'text';
-  nameInput.name = `element-name-${el.id}`;
-  nameInput.value = el.name;
-  nameInput.placeholder = 'Element';
-  nameInput.setAttribute('aria-label', 'Element name');
-  nameInput.autocomplete = 'off';
-  nameInput.addEventListener('input', () => {
-    el.name = nameInput.value;
-    save();
-  });
-
-  const remove = document.createElement('button');
-  remove.className = 'element__remove';
-  remove.type = 'button';
-  remove.textContent = '🗑';
-  remove.setAttribute('aria-label', `Remove ${el.name || 'element'}`);
-  remove.addEventListener('click', () => {
-    state.elements = state.elements.filter((e) => e.id !== el.id);
-    save();
-    renderElements();
-  });
-
-  head.append(nameInput, remove);
-
-  const swatches = document.createElement('div');
-  swatches.className = 'swatches';
-
-  el.cans.forEach((code, idx) => {
-    swatches.appendChild(renderSwatch(el, code, idx));
-  });
-
-  // add-can tile
-  const add = document.createElement('button');
-  add.className = 'swatch swatch--add';
-  add.type = 'button';
-  add.setAttribute('aria-label', 'Add a can');
-  add.innerHTML = '<span class="swatch__dot">+</span><span class="swatch__code">ADD</span><span class="swatch__name">can</span>';
-  add.addEventListener('click', () => openPicker(el.id, null));
-  swatches.appendChild(add);
-
-  wrap.append(head, swatches);
-  return wrap;
+function roleInput(el, big) {
+  const input = document.createElement('input');
+  input.className = big ? 'element__role-big' : 'element__role';
+  input.type = 'text';
+  input.name = `role-${el.id}`;
+  input.value = el.role || '';
+  input.placeholder = el.isDefault ? el.role : 'Element name';
+  input.setAttribute('aria-label', 'Element role');
+  input.addEventListener('input', () => mutate(() => { el.role = input.value; }));
+  input.addEventListener('click', (e) => e.stopPropagation());
+  return input;
 }
 
-function renderSwatch(el, code, idx) {
-  const c = BY_CODE.get(code);
-  const btn = document.createElement('button');
-  btn.className = 'swatch';
-  btn.type = 'button';
-  btn.setAttribute('aria-label', `${c.code} ${c.name} — tap to change`);
-
-  const dot = document.createElement('span');
-  dot.className = 'swatch__dot';
-  dot.style.background = c.hex;
-
-  const codeEl = document.createElement('span');
-  codeEl.className = 'swatch__code';
-  codeEl.textContent = c.code;
-
-  const nameEl = document.createElement('span');
-  nameEl.className = 'swatch__name';
-  nameEl.textContent = c.name;
-
-  btn.append(dot, codeEl, nameEl);
-  btn.addEventListener('click', () => openPicker(el.id, idx));
-  return btn;
-}
-
-$('#add-element').addEventListener('click', () => {
-  state.elements.push({ id: nextId(), name: '', cans: [] });
-  save();
-  renderElements();
-  // focus the new element's name input
-  const last = elementsEl.lastElementChild;
-  last?.querySelector('.element__name')?.focus();
-});
-
-// ---------- Colour picker ----------
-const picker = $('#picker');
-const pickerGrid = $('#picker-grid');
-const pickerSearch = $('#picker-search');
-const pickerEmpty = $('#picker-empty');
-let pickerTarget = null; // { elementId, canIndex|null }
-let removeBtn = null;
-
-function buildRemoveBtn() {
+function removeBtn(el) {
   const b = document.createElement('button');
-  b.className = 'picker__close';
+  b.className = 'element__remove';
   b.type = 'button';
-  b.textContent = 'Remove';
-  b.style.width = 'auto';
-  b.style.padding = '0 14px';
-  b.setAttribute('aria-label', 'Remove this can');
-  b.addEventListener('click', () => {
-    if (pickerTarget && pickerTarget.canIndex != null) {
-      const el = state.elements.find((e) => e.id === pickerTarget.elementId);
-      if (el) {
-        el.cans.splice(pickerTarget.canIndex, 1);
-        save();
-        renderElements();
-      }
-    }
-    closePicker();
+  b.textContent = '✕';
+  b.setAttribute('aria-label', `Remove ${el.role || 'element'}`);
+  b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    mutate(() => { state.elements = state.elements.filter((x) => x.id !== el.id); });
   });
   return b;
 }
 
-function openPicker(elementId, canIndex) {
-  pickerTarget = { elementId, canIndex };
-  pickerSearch.value = '';
-  renderPickerGrid('');
-  if (!removeBtn) {
-    removeBtn = buildRemoveBtn();
-    $('.picker__bar').insertBefore(removeBtn, $('#picker-close'));
+function renderEmpty(el) {
+  const card = document.createElement('div');
+  card.className = 'element element--empty';
+
+  const ph = document.createElement('div');
+  ph.className = 'element__placeholder';
+
+  const main = document.createElement('div');
+  main.className = 'element__empty-main';
+  main.appendChild(roleInput(el, true));
+  if (el.hint) {
+    const hint = document.createElement('div');
+    hint.className = 'element__hint';
+    hint.textContent = el.hint;
+    main.appendChild(hint);
   }
-  removeBtn.hidden = canIndex == null;
-  picker.hidden = false;
-  picker.setAttribute('aria-hidden', 'false');
-  document.body.style.overflow = 'hidden';
-  // Don't autofocus on touch (avoids keyboard covering the grid); user taps search.
-  if (!('ontouchstart' in window)) pickerSearch.focus();
+
+  const add = document.createElement('button');
+  add.className = 'element__add-first';
+  add.type = 'button';
+  add.textContent = '+';
+  add.setAttribute('aria-label', `Add a colour to ${el.role || 'element'}`);
+
+  const openAdd = () => openPicker({
+    context: `Choose for · ${el.role || 'Element'}`,
+    onChoose: (c) => mutate(() => el.colors.push({ ...c, qty: 1 })),
+  });
+  add.addEventListener('click', (e) => { e.stopPropagation(); openAdd(); });
+  ph.addEventListener('click', openAdd);
+
+  card.append(ph, main, removeBtn(el), add);
+  return card;
 }
 
-function closePicker() {
-  picker.hidden = true;
-  picker.setAttribute('aria-hidden', 'true');
-  document.body.style.overflow = '';
-  pickerTarget = null;
-}
+function renderPopulated(el) {
+  const card = document.createElement('div');
+  card.className = 'element';
 
-$('#picker-close').addEventListener('click', closePicker);
-picker.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closePicker();
-});
-
-pickerSearch.addEventListener('input', () => renderPickerGrid(pickerSearch.value));
-
-function filterColors(query) {
-  const q = query.trim().toLowerCase();
-  if (!q) return COLORS;
-  const qn = q.replace(/[\s-]/g, '');
-  return COLORS.filter(
-    (c) => c.name.toLowerCase().includes(q) || codeKey(c.code).includes(qn)
-  );
-}
-
-function renderPickerGrid(query) {
-  const list = filterColors(query);
-  pickerEmpty.hidden = list.length > 0;
-  const frag = document.createDocumentFragment();
-  for (const c of list) {
-    const b = document.createElement('button');
-    b.className = 'pick';
-    b.type = 'button';
-    b.setAttribute('role', 'option');
-    b.setAttribute('aria-label', `${c.code} ${c.name}`);
-    b.innerHTML =
-      `<span class="pick__dot" style="background:${c.hex}"></span>` +
-      `<span class="pick__code">${c.code}</span>` +
-      `<span class="pick__name">${escapeHtml(c.name)}</span>`;
-    b.addEventListener('click', () => choose(c.code));
-    frag.appendChild(b);
+  // header
+  const head = document.createElement('div');
+  head.className = 'element__head';
+  const left = document.createElement('div');
+  left.className = 'element__head-left';
+  left.appendChild(roleInput(el, false));
+  if (el.colors.length > 1) {
+    const badge = document.createElement('span');
+    badge.className = 'fade-badge';
+    badge.textContent = 'Fade';
+    left.appendChild(badge);
   }
-  pickerGrid.innerHTML = '';
-  pickerGrid.appendChild(frag);
-  pickerGrid.scrollTop = 0;
+  const cansN = elementCans(el);
+  const cans = document.createElement('span');
+  cans.className = 'element__cans';
+  cans.textContent = `${cansN} ${cansN === 1 ? 'can' : 'cans'}`;
+  const right = document.createElement('div');
+  right.className = 'element__head-left';
+  right.append(cans, removeBtn(el));
+  head.append(left, right);
+
+  // colour rows
+  const colors = document.createElement('div');
+  colors.className = 'colors';
+  el.colors.forEach((c, idx) => colors.appendChild(renderColorRow(el, c, idx)));
+
+  // add colour
+  const addC = document.createElement('button');
+  addC.className = 'add-colour';
+  addC.type = 'button';
+  addC.innerHTML = '<span class="add-colour__plus">+</span> Add colour';
+  addC.addEventListener('click', () => openPicker({
+    context: `Choose for · ${el.role || 'Element'}`,
+    onChoose: (c) => mutate(() => el.colors.push({ ...c, qty: 1 })),
+  }));
+
+  card.append(head, colors, addC);
+  return card;
 }
 
-function choose(code) {
-  if (!pickerTarget) return;
-  const el = state.elements.find((e) => e.id === pickerTarget.elementId);
-  if (el) {
-    if (pickerTarget.canIndex == null) el.cans.push(code);
-    else el.cans[pickerTarget.canIndex] = code;
-    save();
-    renderElements();
+function renderColorRow(el, c, idx) {
+  const row = document.createElement('div');
+  row.className = 'colorrow';
+
+  const sw = document.createElement('button');
+  sw.className = 'colorrow__sw';
+  sw.type = 'button';
+  sw.style.background = c.hex;
+  sw.setAttribute('aria-label', `${c.code} ${c.name} — change or remove`);
+  sw.addEventListener('click', () => openPicker({
+    context: `Choose for · ${el.role || 'Element'}`,
+    selectedVendor: c.vendor,
+    selectedKey: `${c.vendor}:${c.code}`,
+    canRemove: true,
+    onChoose: (nc) => mutate(() => { el.colors[idx] = { ...nc, qty: c.qty }; }),
+    onRemove: () => mutate(() => { el.colors.splice(idx, 1); }),
+  }));
+
+  const meta = document.createElement('div');
+  meta.className = 'colorrow__meta';
+  const nm = document.createElement('div');
+  nm.className = 'colorrow__name';
+  nm.textContent = c.name;
+  const cd = document.createElement('div');
+  cd.className = 'colorrow__code';
+  cd.textContent = c.code;
+  meta.append(nm, cd);
+
+  const stepper = document.createElement('div');
+  stepper.className = 'stepper';
+  const minus = document.createElement('button');
+  minus.className = 'stepper__btn stepper__btn--minus';
+  minus.type = 'button';
+  minus.textContent = '−';
+  minus.setAttribute('aria-label', 'Decrease quantity');
+  minus.addEventListener('click', () => mutate(() => { c.qty = Math.max(1, c.qty - 1); }));
+  const val = document.createElement('div');
+  val.className = 'stepper__val';
+  val.textContent = c.qty;
+  const plus = document.createElement('button');
+  plus.className = 'stepper__btn stepper__btn--plus';
+  plus.type = 'button';
+  plus.textContent = '+';
+  plus.setAttribute('aria-label', 'Increase quantity');
+  plus.addEventListener('click', () => mutate(() => { c.qty = Math.min(99, c.qty + 1); }));
+  stepper.append(minus, val, plus);
+
+  row.append(sw, meta, stepper);
+  return row;
+}
+
+// ---------------------------------------------------------------- export view
+function renderExportView() {
+  const s = state;
+  const items = flatColours(s);
+  $('export-title').textContent = s.readOnly ? 'Shared can list' : 'Your can list';
+
+  const bars = $('preview-bars');
+  bars.innerHTML = '';
+  (items.length ? items : [{ hex: '#26282B' }]).forEach((c) => {
+    const d = document.createElement('div');
+    d.style.background = c.hex;
+    bars.appendChild(d);
+  });
+
+  $('preview-name').textContent = (s.pieceName || '').trim() || 'Untitled piece';
+  $('preview-meta').textContent = `${colourCount(s)} colours · ${totalCans(s)} cans`;
+  import('/canvas.js').then(({ brandForState }) => { $('preview-brand').textContent = brandForState(s); });
+
+  const list = $('shopping-list');
+  list.innerHTML = '';
+  for (const c of items) {
+    const row = document.createElement('div');
+    row.className = 'shopitem';
+    const sw = document.createElement('div');
+    sw.className = 'shopitem__sw';
+    sw.style.background = c.hex;
+    const meta = document.createElement('div');
+    meta.className = 'shopitem__meta';
+    const nm = document.createElement('div');
+    nm.className = 'shopitem__name';
+    nm.textContent = c.name;
+    const sub = document.createElement('div');
+    sub.className = 'shopitem__sub';
+    sub.textContent = `${c.code} · ${c.role}`;
+    meta.append(nm, sub);
+    const qty = document.createElement('div');
+    qty.className = 'shopitem__qty';
+    qty.textContent = `×${c.qty}`;
+    row.append(sw, meta, qty);
+    list.appendChild(row);
   }
-  closePicker();
+
+  const cans = totalCans(s);
+  $('total-row-value').textContent = `${cans} ${cans === 1 ? 'can' : 'cans'}`;
 }
 
-function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-}
+function showExport() { renderExportView(); $('planner').hidden = true; $('export-view').hidden = false; window.scrollTo(0, 0); }
+function hideExport() { $('export-view').hidden = true; $('planner').hidden = false; }
 
-// ---------- Export ----------
-import { renderPaletteCanvas } from './export.js';
-
-const exportBtn = $('#export-btn');
-const exportView = $('#export-view');
-const exportImg = $('#export-img');
-const exportDownload = $('#export-download');
-const exportShareBtn = $('#export-share');
-const exportHint = $('#export-hint');
-let lastObjectUrl = null;
-
-exportBtn.addEventListener('click', async () => {
-  exportBtn.disabled = true;
-  const original = exportBtn.textContent;
-  exportBtn.textContent = 'Rendering…';
-  try {
-    const canvas = await renderPaletteCanvas(state, BY_CODE);
-    const blob = await canvasToBlob(canvas);
-    if (!blob) throw new Error('toBlob returned null');
-
-    const file = makeFile(blob);
-    const shareData = {
-      title: state.title || 'Loop Colors palette',
-      text: `${state.title || 'Mural'} — Loop Colors can list`,
-      files: [file],
-    };
-
-    // 1) Try native share sheet with the PNG file (best on mobile → WhatsApp etc.)
-    if (canShareFiles(file)) {
-      try {
-        await navigator.share(shareData);
-        return; // shared successfully
-      } catch (err) {
-        if (err && err.name === 'AbortError') return; // user cancelled
-        // otherwise fall through to the visual fallback
-      }
-    }
-
-    // 2) Fallback: show the PNG full-screen with download + optional share.
-    showExportView(blob, file);
-  } catch (err) {
-    console.error('[export] failed', err);
-    alertSafe('Sorry — export failed. ' + (err?.message || ''));
-  } finally {
-    exportBtn.disabled = false;
-    exportBtn.textContent = original;
-  }
-});
-
+// ---------------------------------------------------------------- PNG / share / copy
 function canvasToBlob(canvas) {
-  return new Promise((resolve) => {
-    if (canvas.toBlob) {
-      canvas.toBlob((b) => resolve(b), 'image/png');
-    } else {
-      // very old fallback via data URL
-      try {
-        const dataUrl = canvas.toDataURL('image/png');
-        resolve(dataURLtoBlob(dataUrl));
-      } catch {
-        resolve(null);
-      }
-    }
+  return new Promise((res) => {
+    if (canvas.toBlob) canvas.toBlob((b) => res(b), 'image/png');
+    else res(null);
   });
 }
-
-function makeFile(blob) {
-  const name = fileName();
-  try {
-    return new File([blob], name, { type: 'image/png' });
-  } catch {
-    // Some old iOS lack the File constructor; wrap the blob so callers still work.
-    blob.name = name;
-    return blob;
-  }
-}
-
-function canShareFiles(file) {
-  return (
-    typeof navigator !== 'undefined' &&
-    typeof navigator.share === 'function' &&
-    typeof navigator.canShare === 'function' &&
-    file instanceof File &&
-    navigator.canShare({ files: [file] })
-  );
-}
-
-function showExportView(blob, file) {
-  if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
-  lastObjectUrl = URL.createObjectURL(blob);
-  exportImg.src = lastObjectUrl;
-  exportDownload.href = lastObjectUrl;
-  exportDownload.download = fileName();
-
-  // On touch devices, long-press to save/share is the primary path.
-  exportHint.textContent = ('ontouchstart' in window)
-    ? 'Long-press the image to share or save'
-    : 'Download the PNG, or right-click to save';
-
-  if (canShareFiles(file)) {
-    exportShareBtn.hidden = false;
-    exportShareBtn.onclick = async () => {
-      try {
-        await navigator.share({
-          title: state.title || 'Loop Colors palette',
-          text: `${state.title || 'Mural'} — Loop Colors can list`,
-          files: [file],
-        });
-      } catch (err) {
-        if (!(err && err.name === 'AbortError')) console.warn('[share] retry failed', err);
-      }
-    };
-  } else {
-    exportShareBtn.hidden = true;
-  }
-
-  exportView.hidden = false;
-  exportView.setAttribute('aria-hidden', 'false');
-  document.body.style.overflow = 'hidden';
-}
-
-$('#export-close').addEventListener('click', () => {
-  exportView.hidden = true;
-  exportView.setAttribute('aria-hidden', 'true');
-  document.body.style.overflow = '';
-});
-
 function fileName() {
-  const base = (state.title || 'loop-palette')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'loop-palette';
+  const base = (state.pieceName || 'can-list').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'can-list';
   return `${base}.png`;
 }
 
-function dataURLtoBlob(dataUrl) {
-  const [head, body] = dataUrl.split(',');
-  const mime = head.match(/:(.*?);/)[1];
-  const bin = atob(body);
-  const arr = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-  return new Blob([arr], { type: mime });
+async function downloadPng() {
+  const btn = $('download-png');
+  const label = btn.textContent; btn.disabled = true; btn.textContent = 'Rendering…';
+  try {
+    const canvas = await renderExportCanvas(state);
+    const blob = await canvasToBlob(canvas);
+    if (!blob) throw new Error('render failed');
+    const file = makeFile(blob);
+    if (canShareFiles(file)) {
+      try { await navigator.share({ files: [file], title: state.pieceName || 'Can list' }); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fileName();
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (e) { toast('Export failed'); console.error(e); }
+  finally { btn.disabled = false; btn.textContent = label; }
 }
 
-function alertSafe(msg) {
-  // Avoid blocking modal dialogs where possible; console + inline hint.
-  console.warn(msg);
-  exportHint && (exportHint.textContent = msg);
+function makeFile(blob) {
+  try { return new File([blob], fileName(), { type: 'image/png' }); }
+  catch { blob.name = fileName(); return blob; }
+}
+function canShareFiles(file) {
+  return typeof navigator !== 'undefined' && typeof navigator.share === 'function' &&
+    typeof navigator.canShare === 'function' && file instanceof File && navigator.canShare({ files: [file] });
 }
 
-// ---------- Boot ----------
-renderElements();
+function copyList() {
+  const groups = new Map(); // vendorId -> items
+  for (const c of flatColours(state)) {
+    const key = c.vendor;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(c);
+  }
+  let out = `${state.pieceName || 'Untitled piece'} — ${totalCans(state)} cans\n`;
+  import('/data/vendors.js').then(({ VENDORS }) => {
+    const brand = (id) => (VENDORS.find((v) => v.id === id) || {}).brand || id;
+    let text = out + '\n';
+    for (const [vid, items] of groups) {
+      const vcans = items.reduce((n, c) => n + c.qty, 0);
+      text += `${brand(vid)} — ${vcans} cans\n`;
+      for (const c of items) text += `  ${c.qty} × ${c.code} ${c.name} — ${c.role}\n`;
+      text += '\n';
+    }
+    navigator.clipboard.writeText(text.trim())
+      .then(() => toast('Can list copied'))
+      .catch(() => toast('Copy failed'));
+  });
+}
+
+async function shareFromExport() {
+  // native share of the text list (image share is on Download PNG)
+  const text = await buildShareText();
+  if (navigator.share) {
+    try { await navigator.share({ title: state.pieceName || 'Can list', text }); }
+    catch (e) { if (!(e && e.name === 'AbortError')) toast('Share cancelled'); }
+  } else { copyList(); }
+}
+async function buildShareText() {
+  const { VENDORS } = await import('/data/vendors.js');
+  const brand = (id) => (VENDORS.find((v) => v.id === id) || {}).brand || id;
+  let text = `${state.pieceName || 'Untitled piece'} — ${totalCans(state)} cans\n`;
+  for (const c of flatColours(state)) text += `${c.qty}× ${c.code} ${c.name} (${brand(c.vendor)}) — ${c.role}\n`;
+  return text.trim();
+}
+
+// ---------------------------------------------------------------- Turnstile
+let turnstileScript;
+function loadTurnstile() {
+  if (turnstileScript) return turnstileScript;
+  turnstileScript = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    s.async = true; s.defer = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('turnstile load failed'));
+    document.head.appendChild(s);
+  });
+  return turnstileScript;
+}
+async function getTurnstileToken() {
+  try {
+    await loadTurnstile();
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed;left:-9999px;top:-9999px;';
+    document.body.appendChild(holder);
+    return await new Promise((resolve) => {
+      let done = false;
+      const finish = (tok) => { if (done) return; done = true; try { window.turnstile.remove(id); } catch {} holder.remove(); resolve(tok); };
+      const id = window.turnstile.render(holder, {
+        sitekey: TURNSTILE_SITEKEY,
+        callback: (t) => finish(t),
+        'error-callback': () => finish(''),
+        'timeout-callback': () => finish(''),
+      });
+      window.turnstile.execute(id);
+      setTimeout(() => finish(''), 8000);
+    });
+  } catch { return ''; }
+}
+
+// ---------------------------------------------------------------- save / share flows
+async function ensureSaved() {
+  if (state.editToken) return true;
+  const token = await getTurnstileToken();
+  const r = await api.create(token);
+  state.id = r.id; state.editToken = r.editToken; state.shareToken = r.shareToken;
+  state.updatedAt = r.updatedAt || Date.now();
+  rememberPiece({ editToken: state.editToken, shareToken: state.shareToken, name: state.pieceName, updatedAt: state.updatedAt });
+  clearDraft();
+  history.replaceState(null, '', `/?p=${state.editToken}`);
+  updateSubline();
+  return true;
+}
+
+async function doSave() {
+  closeMenu();
+  try {
+    const created = !state.editToken;
+    await ensureSaved();
+    if (!created) { await api.update(state.editToken); }
+    showLinkModal({
+      title: 'Your edit link',
+      sub: 'Keep this link to edit from any device',
+      url: `${location.origin}/?p=${state.editToken}`,
+    });
+  } catch (e) { toast(saveErr(e)); }
+}
+
+async function doShare() {
+  closeMenu();
+  try {
+    await ensureSaved();
+    showLinkModal({
+      title: 'Read-only share link',
+      sub: 'Anyone with this link sees the can list (no editing)',
+      url: `${location.origin}/?s=${state.shareToken}`,
+    });
+  } catch (e) { toast(saveErr(e)); }
+}
+
+function saveErr(e) {
+  if (e.status === 429) return 'Too many saves — try again later';
+  if (e.status === 400) return 'Verification failed — reload and retry';
+  return 'Save failed — check connection';
+}
+
+// ---------------------------------------------------------------- link modal + QR
+function showLinkModal({ title, sub, url }) {
+  $('link-modal-title').textContent = title;
+  $('link-modal-sub').textContent = sub;
+  $('link-input').value = url;
+  const qr = qrcode(0, 'M');
+  qr.addData(url);
+  qr.make();
+  $('qr-holder').innerHTML = qr.createSvgTag({ cellSize: 5, margin: 2, scalable: true });
+  $('link-modal').hidden = false;
+  $('link-modal').setAttribute('aria-hidden', 'false');
+}
+function closeLinkModal() { $('link-modal').hidden = true; }
+
+// ---------------------------------------------------------------- menu
+function openMenu() { renderMyPieces(false); $('menu').hidden = false; $('menu').setAttribute('aria-hidden', 'false'); }
+function closeMenu() { $('menu').hidden = true; $('mypieces-list').hidden = true; }
+
+function renderMyPieces(show) {
+  const box = $('mypieces-list');
+  const pieces = listPieces();
+  box.innerHTML = '';
+  if (!pieces.length) {
+    const p = document.createElement('div');
+    p.className = 'mypiece__meta';
+    p.style.padding = '12px 4px';
+    p.textContent = 'No saved pieces on this device yet.';
+    box.appendChild(p);
+  } else {
+    for (const pc of pieces) {
+      const item = document.createElement('button');
+      item.className = 'mypiece';
+      item.type = 'button';
+      const meta = document.createElement('div');
+      const nm = document.createElement('div');
+      nm.className = 'mypiece__name';
+      nm.textContent = pc.name || 'Untitled piece';
+      const mt = document.createElement('div');
+      mt.className = 'mypiece__meta';
+      mt.textContent = `edited ${relativeTime(pc.updatedAt) || 'recently'}`;
+      meta.append(nm, mt);
+      const open = document.createElement('span');
+      open.className = 'mypiece__meta';
+      open.textContent = 'Open ›';
+      item.append(meta, open);
+      item.addEventListener('click', () => { location.href = `/?p=${pc.editToken}`; });
+      box.appendChild(item);
+    }
+  }
+  box.hidden = !show;
+}
+
+function newPiece() {
+  closeMenu();
+  clearDraft();
+  replaceState(freshState());
+  history.replaceState(null, '', '/');
+  notify();
+  toast('New piece');
+}
+
+// ---------------------------------------------------------------- boot
+function applyReadOnly() {
+  document.body.classList.add('read-only');
+  $('export-back').addEventListener('click', () => { location.href = '/'; });
+}
+
+async function boot() {
+  initPicker();
+  wireStaticControls();
+  subscribe(renderPlanner);
+
+  const params = new URLSearchParams(location.search);
+  const editToken = params.get('p');
+  const shareToken = params.get('s');
+
+  if (shareToken) {
+    try {
+      const r = await api.loadShared(shareToken);
+      const s = hydrate(r.data);
+      s.pieceName = r.name || s.pieceName;
+      s.readOnly = true;
+      s.updatedAt = r.updatedAt;
+      replaceState(s);
+      applyReadOnly();
+      showExport();
+      return;
+    } catch (e) { toast('Shared piece not found'); }
+  }
+
+  if (editToken) {
+    try {
+      const r = await api.load(editToken);
+      const s = hydrate(r.data);
+      s.id = r.id; s.editToken = editToken; s.shareToken = r.shareToken;
+      s.pieceName = r.name || s.pieceName; s.updatedAt = r.updatedAt;
+      replaceState(s);
+      rememberPiece({ editToken, shareToken: r.shareToken, name: s.pieceName, updatedAt: s.updatedAt });
+      notify();
+      return;
+    } catch (e) { toast('Piece not found — starting fresh'); history.replaceState(null, '', '/'); }
+  }
+
+  const draft = loadDraft();
+  if (draft) replaceState(Object.assign(freshState(), draft));
+  notify();
+}
+
+function wireStaticControls() {
+  $('title-input').addEventListener('input', (e) => mutate(() => { state.pieceName = e.target.value; }));
+  $('add-element').addEventListener('click', () => {
+    mutate(() => state.elements.push({ id: newId(), role: '', colors: [] }));
+    const last = $('elements').lastElementChild;
+    last?.querySelector('.element__role-big, .element__role')?.focus();
+  });
+  $('export-btn').addEventListener('click', showExport);
+  $('export-back').addEventListener('click', hideExport);
+  $('download-png').addEventListener('click', downloadPng);
+  $('copy-list').addEventListener('click', copyList);
+  $('share-btn').addEventListener('click', shareFromExport);
+
+  $('menu-btn').addEventListener('click', openMenu);
+  document.querySelectorAll('[data-close-menu]').forEach((n) => n.addEventListener('click', closeMenu));
+  document.querySelectorAll('[data-close-linkmodal]').forEach((n) => n.addEventListener('click', closeLinkModal));
+  $('link-copy').addEventListener('click', () => {
+    navigator.clipboard.writeText($('link-input').value).then(() => toast('Link copied')).catch(() => toast('Copy failed'));
+  });
+  $('menu').addEventListener('click', (e) => {
+    const action = e.target.closest('[data-action]')?.dataset.action;
+    if (action === 'new') newPiece();
+    else if (action === 'save') doSave();
+    else if (action === 'share') doShare();
+    else if (action === 'mypieces') renderMyPieces(true);
+  });
+}
+
+boot();

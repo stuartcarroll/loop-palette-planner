@@ -1,69 +1,79 @@
-# Loop Colors Palette Planner
+# Palette — spray-paint planner
 
-A mobile-first web app for planning graffiti mural colour palettes using the real
-**Loop Colors 400ml** spray paint range. Assign cans to mural elements (fill,
-outline, 3D, background, highlights, characters…), then export a shareable PNG so
-the crew knows exactly which cans to buy.
+A mobile-first web app for planning graffiti / mural colour palettes using real
+manufacturer spray ranges. Name a piece, assign one or more cans to each
+**element** (Fill, Outline, 3D, Background, + custom), set a quantity per can,
+then export a shareable palette image and shopping / can list.
 
 **Live:** https://colours.stuc.dev
 
-![Loop Colors Palette Planner](public/icons/icon-512.png)
+![Palette](public/icons/icon-512.png)
 
 ## Features
 
-- **216 real Loop Colors cans** — searchable by colour name or `LP-xxx` code.
-- **Elements list** — name each mural part, assign one or more cans, add/remove freely.
-- **Full-screen colour picker** — tap a swatch or `+` to browse the whole range.
-- **PNG export** — renders a 1080px "can list" on a dark concrete-wall background
-  with a marker-style title, ready to share. Uses the Web Share API (so it drops
-  straight into WhatsApp on mobile) with a download fallback.
-- **PWA** — installable to the home screen; self-hosted fonts; works offline-ish.
-- Built for **iOS Safari** and **Android Chrome**, with safe-area insets and
-  44px touch targets. No framework — plain static HTML/CSS/JS.
+- **1044 real cans across 6 ranges** — Loop Colors (216), Montana GOLD (193),
+  Montana BLACK (164), MTN 94 (169), MTN Hardcore (139), Molotow PREMIUM (163).
+  Switch vendor with a tab; a piece (and even a single fade) can mix brands.
+- **Fades** — an element holds an *ordered list* of colours; more than one makes
+  a fade, and every colour carries its own quantity.
+- **Colour picker** — search by name or code, filter/group by colour **family**
+  (derived at build time from HSL — the datasets have no family column).
+- **Export** — a 1080px PNG can-list card (Web Share on mobile, download
+  fallback), plus **Copy list** (plain-text, grouped by vendor).
+- **Save & Share, no accounts** — Save stores the piece server-side and returns
+  an unguessable **edit link** + QR (a capability URL). Share returns a separate
+  read-only link + QR. "My pieces" remembers saves on the device.
+- Installable **PWA**; self-hosted fonts (Space Grotesk / Instrument Sans /
+  Space Mono); safe-area insets; 44px touch targets. No framework.
 
-## Colour data
+## Data
 
-Colours are parsed **at build time** from `loop_colors.xlsx` in
+Colours are parsed **at build time** from the xlsx files in
 [stuartcarroll/SprayPaintSwatches](https://github.com/stuartcarroll/SprayPaintSwatches)
-into a static array (`public/colors.js`) — there is no runtime fetch. Five core
-black/white cans absent from the sheet (LP-100/101/103/104/105) are added manually,
-for 216 total. Thanks to **SprayPaintSwatches** for the swatch data.
+into static per-vendor ES modules (`public/data/*.js`) — no runtime fetch, no
+runtime xlsx parsing. Five core Loop black/white cans absent from the sheet are
+added manually (216 total). Thanks to **SprayPaintSwatches** for the swatch data.
+
+## Architecture
+
+- **Frontend:** plain static HTML/CSS/ES-modules in `public/`.
+- **Backend:** a single **Cloudflare Worker** (`worker/index.js`) that serves the
+  static assets *and* a small JSON API backed by **D1**:
+  - `POST /api/pieces` — create (Turnstile-gated, rate-limited) → `{editToken, shareToken}`
+  - `GET|PUT|DELETE /api/pieces/:editToken` — load / autosave / delete
+  - `GET /api/shared/:shareToken` — read-only load
+- **Abuse protection:** Cloudflare **Turnstile** (invisible) on create, D1-backed
+  per-IP rate limit (20/hr), 10 KB payload cap, and a daily cron that deletes
+  pieces untouched for 12 months.
+- Tokens are 128-bit, `crypto.getRandomValues`, base64url.
 
 ## Development
 
 ```bash
 npm install
-npm run build      # regenerate public/colors.js + PWA icons
-npm run dev        # serve public/ at http://localhost:4321
+npm run build                 # generate data modules + PWA icons
+npm run db:migrate:local      # apply D1 migrations locally
+npx wrangler dev              # run Worker + assets + local D1
 ```
+
+`.dev.vars` holds `TURNSTILE_SECRET` for local dev (Cloudflare test key).
 
 ## Deployment
 
-Deployed as a static site on **Cloudflare Workers (static assets)**:
+Cloudflare Worker (static assets + D1), custom domain `colours.stuc.dev`.
+Push to `main` auto-deploys via GitHub Actions.
 
 ```bash
-npm run deploy     # wrangler deploy — serves ./public, binds colours.stuc.dev
+npm run db:migrate            # apply migrations to remote D1
+npx wrangler deploy
+npx wrangler secret put TURNSTILE_SECRET
 ```
 
-## Project structure
+### Turnstile
 
-```
-public/            # the deployed static site
-  index.html
-  styles.css
-  app.js           # UI + state + picker + share
-  export.js        # 1080px canvas renderer
-  colors.js        # generated — 216 cans
-  fonts/           # self-hosted Permanent Marker + Barlow Condensed (woff2)
-  icons/           # PWA icons
-  manifest.webmanifest
-scripts/
-  build-colors.mjs # xlsx -> colors.js
-  make-icons.mjs   # SVG -> PNG icons
-  serve.mjs        # local dev server
-data/loop_colors.xlsx
-wrangler.jsonc
-```
+`public/config.js` holds the public Turnstile **site** key; the **secret** is the
+Worker secret `TURNSTILE_SECRET`. Both default to Cloudflare's always-pass test
+keys — swap in a real widget's keys to activate protection.
 
 ## License
 

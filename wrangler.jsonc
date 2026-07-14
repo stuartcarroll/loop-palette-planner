@@ -1,14 +1,28 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "loop-palette-planner",
-  "compatibility_date": "2026-07-11",
-  // Assets-only Worker (no `main`): serves the static site in ./public.
+  "main": "worker/index.js",
+  "compatibility_date": "2026-07-14",
+  // Static site in ./public served first; the Worker handles /api/* + cron.
   "assets": {
-    "directory": "./public"
+    "directory": "./public",
+    "binding": "ASSETS"
   },
-  // Attaches the custom domain + provisions DNS/cert on deploy. The stuc.dev
-  // zone must live in the deploying Cloudflare account.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "loop_palette",
+      "database_id": "683bc6f0-a9ef-4ab0-8e65-b8c6fb53ee09"
+    }
+  ],
+  "triggers": {
+    // Daily TTL cleanup of pieces untouched for 12 months.
+    "crons": ["0 3 * * *"]
+  },
+  // colours.stuc.dev custom domain (zone must be in the deploying account).
   "routes": [
     { "pattern": "colours.stuc.dev", "custom_domain": true }
   ]
+  // Secret (set out-of-band, not in this file):
+  //   TURNSTILE_SECRET — `wrangler secret put TURNSTILE_SECRET`
 }

@@ -4,16 +4,25 @@
   "description": "Mobile-first planner for graffiti mural colour palettes using the real Loop Colors 400ml spray range.",
   "type": "module",
   "scripts": {
-    "build:colors": "node scripts/build-colors.mjs",
+    "build:data": "node scripts/build-data.mjs",
     "build:icons": "node scripts/make-icons.mjs",
-    "build": "npm run build:colors && npm run build:icons",
+    "build": "npm run build:data && npm run build:icons",
     "dev": "node scripts/serve.mjs",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply loop_palette --local",
+    "db:migrate": "wrangler d1 migrations apply loop_palette --remote"
   },
-  "keywords": ["graffiti", "spray-paint", "loop-colors", "palette", "pwa"],
+  "keywords": [
+    "graffiti",
+    "spray-paint",
+    "loop-colors",
+    "palette",
+    "pwa"
+  ],
   "author": "Stuart Carroll",
   "license": "MIT",
   "devDependencies": {
+    "qrcode-generator": "^2.0.4",
     "sharp": "^0.35.3",
     "wrangler": "^4.54.0",
     "xlsx": "^0.18.5"

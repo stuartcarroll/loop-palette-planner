@@ -1,37 +1,30 @@
-/* Self-hosted fonts (latin subset). Loaded before canvas export so the marker
-   font is guaranteed painted onto the PNG. */
+/* Self-hosted fonts (latin). Space Grotesk + Instrument Sans are variable;
+   Space Mono is static (400/700). Loaded before canvas export. */
 @font-face {
-  font-family: 'Permanent Marker';
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('./space-grotesk-var.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('./instrument-sans-var.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Mono';
   font-style: normal;
   font-weight: 400;
-  font-display: block;
-  src: url('./permanent-marker-400.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Barlow Condensed';
-  font-style: normal;
-  font-weight: 400;
   font-display: swap;
-  src: url('./barlow-condensed-400.woff2') format('woff2');
+  src: url('./space-mono-400.woff2') format('woff2');
 }
 @font-face {
-  font-family: 'Barlow Condensed';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('./barlow-condensed-500.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Barlow Condensed';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('./barlow-condensed-600.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Barlow Condensed';
+  font-family: 'Space Mono';
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('./barlow-condensed-700.woff2') format('woff2');
+  src: url('./space-mono-700.woff2') format('woff2');
 }
